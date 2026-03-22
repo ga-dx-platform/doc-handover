@@ -216,6 +216,8 @@ let AU={ga:[],mgr:[]}, PLANS=[], SIGDATA={};
 let CU=null, SU=null, PB='';
 let PIN_ATTEMPTS=0, PIN_LOCKED_UNTIL=0;
 const PIN_MAX_ATTEMPTS=5, PIN_LOCK_MS=60000;
+let _idleTimer=null;
+const IDLE_TIMEOUT_MS=15*60*1000;
 let rdConfirmState=false;
 let _plansPrefetch=null;
 let CPB='', CP_STEP=1, CP_NEW='';
@@ -320,7 +322,7 @@ function closeLogoutModal(){
   m.classList.add('pointer-events-none','opacity-0');
   m.classList.remove('pointer-events-auto','opacity-100');
 }
-function logout(){closeLogoutModal();CU=null;SU=null;PLANS=[];_plansPrefetch=null;goScreen('login');lucide.createIcons();}
+function logout(){stopIdleTimer();closeLogoutModal();CU=null;SU=null;PLANS=[];_plansPrefetch=null;goScreen('login');lucide.createIcons();}
 
 // ===== SKELETON =====
 function skeletonCards(n){
@@ -349,6 +351,29 @@ function skeletonReceiveDetail(){
   </div>`;
 }
 
+// ===== PIN HASH =====
+async function hashPin(pin){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pin));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ===== SESSION TIMEOUT =====
+function _onUserActivity(){if(CU)resetIdleTimer();}
+function startIdleTimer(){
+  document.getElementById('app-root').addEventListener('pointerdown',_onUserActivity,{passive:true});
+  document.getElementById('app-root').addEventListener('keydown',_onUserActivity,{passive:true});
+  resetIdleTimer();
+}
+function resetIdleTimer(){
+  clearTimeout(_idleTimer);
+  _idleTimer=setTimeout(()=>{toast('หมดเวลาเซสชัน — กรุณาล็อกอินใหม่');logout();},IDLE_TIMEOUT_MS);
+}
+function stopIdleTimer(){
+  clearTimeout(_idleTimer);_idleTimer=null;
+  document.getElementById('app-root').removeEventListener('pointerdown',_onUserActivity);
+  document.getElementById('app-root').removeEventListener('keydown',_onUserActivity);
+}
+
 // ===== PIN =====
 function enterPin(d){
   if(PB.length>=4)return;
@@ -371,7 +396,7 @@ async function checkPin(){
   try{
     const planCacheKey='plans:'+SU.name+':'+SU.role;
     const cachedPlans=cacheGet(planCacheKey);
-    const verifyProm=api('verifyPin',{name:SU.name,pin:PB,role:SU.role});
+    const verifyProm=hashPin(PB).then(h=>api('verifyPin',{name:SU.name,pin:h,role:SU.role}));
     const plansProm=_plansPrefetch||(cachedPlans?Promise.resolve(cachedPlans):api('getPlans',{name:SU.name,role:SU.role}));
     const [res,plans]=await Promise.all([verifyProm,plansProm]);
     if(res.ok){
@@ -383,6 +408,7 @@ async function checkPin(){
       toast('ยินดีต้อนรับ '+CU.name.split(' ')[0]+' 👋');
       buildMain();
       goScreen('main');
+      startIdleTimer();
       lucide.createIcons();
       loadAllDocsBackground();
     }else{
@@ -746,12 +772,10 @@ async function submitReceive(){
   const sig=(canvas&&!isCanvasBlank(canvas))?canvas.toDataURL():'';
   if(sig) SIGDATA[CP.id]=sig;
   const all=CP.checked.every(Boolean), status=all?'done':'partial';
-  const now=new Date();
-  const ts=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()+543} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
   try{
-    await api('receipt',{plan_id:CP.id,status,signer:name,sign_img:sig,signed_at:ts,checked:CP.docs.map((d,i)=>({no:d.no,received:CP.checked[i]}))});
-    CP.status=status; CP.signer=name; CP.ts=ts;
+    await api('receipt',{plan_id:CP.id,status,signer:name,sign_img:sig,checked:CP.docs.map((d,i)=>({no:d.no,received:CP.checked[i]}))});
+    CP.status=status; CP.signer=name; CP.ts='';
     cacheDel('docs:'+CP.id);
     cacheDel('plans:'+CU.name+':'+CU.role);
     toast(all?'ยืนยันรับครบทุกรายการแล้ว ✓':'บันทึกรับบางส่วนแล้ว ✓');
@@ -985,7 +1009,7 @@ async function cpNext(){
   if(CP_STEP===1){
     document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
     try{
-      const res=await api('verifyPin',{name:CU.name,pin:CPB,role:CU.role});
+      const res=await api('verifyPin',{name:CU.name,pin:await hashPin(CPB),role:CU.role});
       if(res.ok){
         CP_STEP=2; CPB=''; cpUpdateDots();
         document.getElementById('cp-label').textContent='กรอกรหัสใหม่';
@@ -1016,7 +1040,7 @@ async function cpNext(){
     }
     document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
     try{
-      const res=await api('changePin',{name:CU.name,newPin:CP_NEW,role:CU.role});
+      const res=await api('changePin',{name:CU.name,newPin:await hashPin(CP_NEW),role:CU.role});
       if(res.ok){
         document.getElementById('cp-label').textContent='เปลี่ยนรหัสสำเร็จ ✓';
         document.getElementById('cp-label').style.color='#0F6E56';
@@ -1044,7 +1068,7 @@ async function cpNext(){
     // verify old PIN
     document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
     try{
-      const res=await api('verifyPin',{name:CU.name,pin:CPB,role:CU.role});
+      const res=await api('verifyPin',{name:CU.name,pin:await hashPin(CPB),role:CU.role});
       if(res.ok){
         CP_STEP=2; CPB=''; cpUpdateDots();
         document.getElementById('cp-label').textContent='กรอกรหัสใหม่';
@@ -1075,7 +1099,7 @@ async function cpNext(){
     }
     document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
     try{
-      const res=await api('changePin',{name:CU.name,newPin:CP_NEW,role:CU.role});
+      const res=await api('changePin',{name:CU.name,newPin:await hashPin(CP_NEW),role:CU.role});
       if(res.ok){
         document.getElementById('cp-label').textContent='เปลี่ยนรหัสสำเร็จ ✓';
         document.getElementById('cp-label').style.color='#0F6E56';
