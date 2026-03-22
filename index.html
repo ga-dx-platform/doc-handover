@@ -512,7 +512,8 @@
         }
 
         if (action === 'getPlans') {
-          let query = supabaseClient.from('plans').select('*');
+          // Exclude sign_img for better performance in list views
+          let query = supabaseClient.from('plans').select('p_id, name, date, dept, created_by, status, signer, signed_at');
           if (params.role === 'ga') {
             query = query.eq('created_by', params.name);
           }
@@ -525,9 +526,14 @@
             created_by: r.created_by,
             status: r.status,
             signer: r.signer || '',
-            sign_img: r.sign_img || '',
+            sign_img: '', // Loaded on demand now
             signed_at: r.signed_at || ''
           }));
+        }
+
+        if (action === 'getSign') {
+          const { data } = await supabaseClient.from('plans').select('sign_img').eq('p_id', params.plan_id).single();
+          return data ? data.sign_img : '';
         }
 
         if (action === 'getDocs') {
@@ -825,7 +831,7 @@
         if (res.ok) {
           PIN_ATTEMPTS = 0;
           CU = { ...SU };
-          PLANS = (plans || []).map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }; });
+          PLANS = (plans || []).map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }));
           if (cachedPlans) { api('getPlans', { name: CU.name, role: CU.role }).then(d => { cacheSet(planCacheKey, d); }).catch(() => { }); }
           else { cacheSet(planCacheKey, plans); }
           toast('ยินดีต้อนรับ ' + CU.name.split(' ')[0] + ' 👋');
@@ -860,7 +866,7 @@
     async function loadPlans() {
       document.getElementById('loadingMsg').textContent = '';
       const res = await api('getPlans', { name: CU.name, role: CU.role });
-      PLANS = res.map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }; });
+      PLANS = res.map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }));
     }
 
     async function loadDocs(pid) {
@@ -877,8 +883,16 @@
     }
 
     async function loadAllDocsBackground() {
-      await Promise.allSettled(PLANS.filter(x => !x.loaded).map(p => loadDocs(p.id)));
-      if (HT === 'list') renderHistList();
+      // Prioritize non-done plans first, then the rest
+      const targets = [
+        ...PLANS.filter(p => !p.loaded && p.status !== 'done'),
+        ...PLANS.filter(p => !p.loaded && p.status === 'done').slice(0, 20) // Only pre-load last 20 done plans
+      ];
+      for (const p of targets) {
+        await loadDocs(p.id);
+        if (HT === 'list') renderHistList();
+        await new Promise(r => setTimeout(r, 100)); // Small delay to prevent API congestion
+      }
     }
 
     // ===== MAIN UI =====
@@ -1609,6 +1623,10 @@
     async function openBatch(id) {
       CP = PLANS.find(x => x.id === id);
       if (!CP.loaded) { toast('กำลังโหลด...'); await loadDocs(id); }
+      if (CP.signer && !SIGDATA[id]) {
+        const sig = await api('getSign', { plan_id: id });
+        if (sig) SIGDATA[id] = sig;
+      }
       const p = CP, hasSig = SIGDATA[id];
       const tot = p.docs.reduce((a, d) => a + (d.amount || 0), 0);
       const rcv = p.docs.filter((_, i) => p.checked[i]).reduce((a, d) => a + (d.amount || 0), 0);
