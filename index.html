@@ -187,6 +187,9 @@ async function api(action, params){
 // ===== STATE =====
 let AU={ga:[],mgr:[]}, PLANS=[], SIGDATA={};
 let CU=null, SU=null, PB='';
+let PIN_ATTEMPTS=0, PIN_LOCKED_UNTIL=0;
+const PIN_MAX_ATTEMPTS=5, PIN_LOCK_MS=60000;
+let rdConfirmState=false;
 let CPB='', CP_STEP=1, CP_NEW='';
 let RF='', HF='', GF='', SQ='', HT='dash';
 let CP=null, drawing=false, lx=0, ly=0, sctx=null, DM='select';
@@ -261,7 +264,7 @@ function selectUser(name, role){
   const list=role==='ga'?AU.ga:AU.mgr;
   const idx=list.findIndex(u=>u.name===name);
   const a=avc(role==='ga'?idx:idx+4);
-  SU={name,role,av:a};
+  SU={name,role,av:a}; PIN_ATTEMPTS=0; PIN_LOCKED_UNTIL=0;
   // set PIN screen
   const av=document.getElementById('pin-avatar');
   av.className=`w-16 h-16 rounded-full ${a.bg} ${a.tc} flex items-center justify-center font-bold text-lg mb-3`;
@@ -282,10 +285,17 @@ function deletePin(){PB=PB.slice(0,-1);updatePinDots();document.getElementById('
 function updatePinDots(){document.querySelectorAll('#pin-dots .pin-dot').forEach((dot,i)=>{dot.classList.toggle('filled',i<PB.length);dot.classList.remove('error');});}
 
 async function checkPin(){
+  const now=Date.now();
+  if(PIN_LOCKED_UNTIL>now){
+    const secs=Math.ceil((PIN_LOCKED_UNTIL-now)/1000);
+    document.getElementById('pin-error').textContent=`ล็อกชั่วคราว ลองอีกครั้งใน ${secs} วินาที`;
+    PB=''; updatePinDots(); return;
+  }
   document.querySelectorAll('#screen-pin .numpad-key').forEach(b=>b.style.pointerEvents='none');
   try{
     const res=await api('login',{name:SU.name,pin:PB,role:SU.role});
     if(res.ok){
+      PIN_ATTEMPTS=0;
       CU={...SU};
       PLANS=(res.plans||[]).map(p=>{if(p.sign_img)SIGDATA[p.plan_id]=p.sign_img;return{id:p.plan_id,name:p.name,date:p.date,dept:p.dept,createdBy:p.created_by,status:p.status,signer:p.signer||'',ts:p.signed_at||'',docs:[],checked:[],loaded:false};});
       toast('ยินดีต้อนรับ '+CU.name.split(' ')[0]+' 👋');
@@ -294,9 +304,18 @@ async function checkPin(){
       lucide.createIcons();
       loadAllDocsBackground();
     }else{
+      PIN_ATTEMPTS++;
+      const remaining=PIN_MAX_ATTEMPTS-PIN_ATTEMPTS;
+      if(PIN_ATTEMPTS>=PIN_MAX_ATTEMPTS){
+        PIN_LOCKED_UNTIL=Date.now()+PIN_LOCK_MS;
+        document.getElementById('pin-error').textContent=`ล็อกชั่วคราว ${PIN_LOCK_MS/1000} วินาที`;
+      }else{
+        document.getElementById('pin-error').textContent=`PIN ไม่ถูกต้อง (เหลือ ${remaining} ครั้ง)`;
+      }
       document.querySelectorAll('#pin-dots .pin-dot').forEach(d=>{d.classList.remove('filled');d.classList.add('error');});
-      document.getElementById('pin-error').textContent='PIN ไม่ถูกต้อง ลองใหม่อีกครั้ง';
-      setTimeout(()=>{PB='';updatePinDots();document.querySelectorAll('#pin-dots .pin-dot').forEach(d=>d.classList.remove('error'));},700);
+      setTimeout(()=>{PB='';updatePinDots();document.querySelectorAll('#pin-dots .pin-dot').forEach(d=>d.classList.remove('error'));
+        if(PIN_LOCKED_UNTIL<=Date.now())document.getElementById('pin-error').textContent='';
+      },700);
     }
   }catch(e){
     document.getElementById('pin-error').textContent='เกิดข้อผิดพลาด ลองใหม่';
@@ -545,6 +564,7 @@ async function openReceiveDetail(id){
 }
 
 function closeReceiveDetail(){
+  rdConfirmState=false;
   goScreen('main');
   // refresh receive tab
   const isMgr=CU.role==='mgr';
@@ -555,24 +575,52 @@ function togDoc(i,v){if(CP){CP.checked[i]=v;}}
 
 function initSign(){
   const c=document.getElementById('signatureCanvas'); if(!c)return;
-  sctx=c.getContext('2d'); sctx.strokeStyle='#1E293B'; sctx.lineWidth=2; sctx.lineCap='round'; sctx.lineJoin='round';
-  const pos=e=>{const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height,src=e.touches?e.touches[0]:e;return[(src.clientX-r.left)*sx,(src.clientY-r.top)*sy];};
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  c.width=Math.round(r.width*dpr);
+  c.height=Math.round(r.height*dpr);
+  sctx=c.getContext('2d');
+  sctx.scale(dpr,dpr);
+  sctx.strokeStyle='#1E293B'; sctx.lineWidth=2; sctx.lineCap='round'; sctx.lineJoin='round';
+  const pos=e=>{const rc=c.getBoundingClientRect(),src=e.touches?e.touches[0]:e;return[src.clientX-rc.left,src.clientY-rc.top];};
   c.onpointerdown=e=>{drawing=true;const[x,y]=pos(e);sctx.beginPath();sctx.moveTo(x,y);};
   c.onpointermove=e=>{if(!drawing)return;const[x,y]=pos(e);sctx.lineTo(x,y);sctx.stroke();};
   c.onpointerup=c.onpointerleave=()=>drawing=false;
 }
-function clearSign(){if(sctx){const c=document.getElementById('signatureCanvas');sctx.clearRect(0,0,c.width,c.height);}}
+function clearSign(){if(sctx){const c=document.getElementById('signatureCanvas');const dpr=window.devicePixelRatio||1;sctx.clearRect(0,0,c.width/dpr,c.height/dpr);}}
+
+function isCanvasBlank(canvas){
+  const blank=document.createElement('canvas');
+  blank.width=canvas.width; blank.height=canvas.height;
+  return canvas.toDataURL()===blank.toDataURL();
+}
 
 async function submitReceive(){
   const name=document.getElementById('signerName').value.trim();
   if(!name){toast('กรุณาใส่ชื่อผู้รับ');return;}
   if(!CP.checked.some(Boolean)){toast('กรุณาติ๊กอย่างน้อย 1 รายการ');return;}
-  const canvas=document.getElementById('signatureCanvas'), sig=canvas?canvas.toDataURL():'';
-  if(canvas) SIGDATA[CP.id]=sig;
+  const btn=document.getElementById('rdConfirmBtn');
+  if(!rdConfirmState){
+    rdConfirmState=true;
+    btn.innerHTML='<i data-lucide="alert-triangle" class="w-4 h-4"></i> แตะอีกครั้งเพื่อยืนยัน';
+    btn.className=btn.className.replace('bg-success hover:bg-emerald-800','bg-warn hover:bg-amber-700');
+    lucide.createIcons();
+    setTimeout(()=>{
+      if(rdConfirmState){
+        rdConfirmState=false;
+        if(btn){btn.innerHTML='<i data-lucide="check" class="w-4 h-4"></i> ยืนยันรับเอกสาร';btn.className=btn.className.replace('bg-warn hover:bg-amber-700','bg-success hover:bg-emerald-800');lucide.createIcons();}
+      }
+    },3000);
+    return;
+  }
+  rdConfirmState=false;
+  const canvas=document.getElementById('signatureCanvas');
+  const sig=(canvas&&!isCanvasBlank(canvas))?canvas.toDataURL():'';
+  if(sig) SIGDATA[CP.id]=sig;
   const all=CP.checked.every(Boolean), status=all?'done':'partial';
   const now=new Date();
   const ts=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()+543} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const btn=document.getElementById('rdConfirmBtn'); if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
   try{
     await api('receipt',{plan_id:CP.id,status,signer:name,sign_img:sig,signed_at:ts,checked:CP.docs.map((d,i)=>({no:d.no,received:CP.checked[i]}))});
     CP.status=status; CP.signer=name; CP.ts=ts;
@@ -584,23 +632,26 @@ async function submitReceive(){
 // ===== HISTORY TAB =====
 function renderHistory(){
   const isMgr=CU.role==='mgr';
+  const tabBtns=isMgr
+    ?`<button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md bg-white text-gray-900 card-shadow transition" onclick="switchHistTab(0)">Dashboard</button>
+       <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition" onclick="switchHistTab(1)">รายการ</button>`
+    :`<button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md bg-white text-gray-900 card-shadow transition" onclick="switchHistTab(0)">Dashboard</button>
+       <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition" onclick="switchHistTab(1)">รายการ</button>
+       <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition" onclick="switchHistTab(2)">รหัสของฉัน</button>`;
   document.getElementById('tab-history').innerHTML=`
     <div class="px-4 pt-3 pb-1">
-      <div class="flex bg-gray-100 rounded-lg p-0.5 mb-4">
-        <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md bg-white text-gray-900 card-shadow transition" onclick="switchHistTab(0)">Dashboard</button>
-        <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition" onclick="switchHistTab(1)">รายการ</button>
-        <button class="hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition" onclick="switchHistTab(2)">รหัสของฉัน</button>
-      </div>
+      <div class="flex bg-gray-100 rounded-lg p-0.5 mb-4">${tabBtns}</div>
     </div>
     <div id="hist-body" class="px-4 pb-6"></div>`;
   switchHistTab(0);
 }
 
 function switchHistTab(idx){
+  const isMgr=CU.role==='mgr';
   document.querySelectorAll('.hist-tab').forEach((b,i)=>{
     b.className=i===idx?'hist-tab flex-1 py-2 text-xs font-semibold rounded-md bg-white text-gray-900 card-shadow transition':'hist-tab flex-1 py-2 text-xs font-semibold rounded-md text-gray-400 transition';
   });
-  HT=['dash','list','pin'][idx];
+  HT=(isMgr?['dash','list']:['dash','list','pin'])[idx];
   if(HT==='dash')renderHistDash();
   else if(HT==='list')renderHistList();
   else renderPinChange();

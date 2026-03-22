@@ -2,6 +2,12 @@
 // ใส่ Spreadsheet ID ของคุณที่นี่
 var SS_ID = 'YOUR_SPREADSHEET_ID';
 
+var _ss = null;
+function getSS() {
+  if (!_ss) _ss = SpreadsheetApp.openById(SS_ID);
+  return _ss;
+}
+
 // ===== WEB APP ENTRY POINTS =====
 function doGet() {
   return HtmlService.createTemplateFromFile('index')
@@ -34,7 +40,7 @@ function doPost(e) {
 
 // ===== HELPERS =====
 function getSheet(name) {
-  return SpreadsheetApp.openById(SS_ID).getSheetByName(name);
+  return getSS().getSheetByName(name);
 }
 
 function sheetToObjects(sheet) {
@@ -50,10 +56,10 @@ function sheetToObjects(sheet) {
 // ===== ACTIONS =====
 function getUsers() {
   var ga  = sheetToObjects(getSheet('GA_Staff')).map(function(r) {
-    return { name: r.name, pin: String(r.pin), role: r.role };
+    return { name: r.name, role: r.role };
   });
   var mgr = sheetToObjects(getSheet('Managers')).map(function(r) {
-    return { name: r.name, pin: String(r.pin), role: r.role };
+    return { name: r.name, role: r.role };
   });
   return { ga: ga, mgr: mgr };
 }
@@ -152,10 +158,11 @@ function receipt(data) {
   var tsC       = pH.indexOf('signed_at');
   for (var i = 1; i < planVals.length; i++) {
     if (planVals[i][pIdC] === data.plan_id) {
-      planSheet.getRange(i + 1, stC  + 1).setValue(data.status);
-      planSheet.getRange(i + 1, sigC + 1).setValue(data.signer);
-      planSheet.getRange(i + 1, imgC + 1).setValue(data.sign_img || '');
-      planSheet.getRange(i + 1, tsC  + 1).setValue(data.signed_at);
+      planVals[i][stC]  = data.status;
+      planVals[i][sigC] = data.signer;
+      planVals[i][imgC] = data.sign_img || '';
+      planVals[i][tsC]  = data.signed_at;
+      planSheet.getRange(i + 1, 1, 1, planVals[i].length).setValues([planVals[i]]);
       break;
     }
   }
@@ -169,13 +176,18 @@ function receipt(data) {
   var rcvC     = dH.indexOf('is_received');
   var map = {};
   (data.checked || []).forEach(function(c) { map[c.no] = c.received; });
+  var docChanged = false;
   for (var j = 1; j < docVals.length; j++) {
     if (docVals[j][dPIdC] === data.plan_id) {
       var no = docVals[j][dNoC];
       if (no in map) {
-        docSheet.getRange(j + 1, rcvC + 1).setValue(String(map[no]));
+        docVals[j][rcvC] = String(map[no]);
+        docChanged = true;
       }
     }
+  }
+  if (docChanged) {
+    docSheet.getRange(1, 1, docVals.length, docVals[0].length).setValues(docVals);
   }
 
   return { ok: true };
