@@ -1007,64 +1007,6 @@ async function cpNext(){
   const msg=document.getElementById('cp-msg');
   document.querySelectorAll('#cp-dots .pin-dot').forEach(dot=>{dot.classList.remove('error');});
   if(CP_STEP===1){
-    document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
-    try{
-      const res=await api('verifyPin',{name:CU.name,pin:await hashPin(CPB),role:CU.role});
-      if(res.ok){
-        CP_STEP=2; CPB=''; cpUpdateDots();
-        document.getElementById('cp-label').textContent='กรอกรหัสใหม่';
-        document.getElementById('cpstep-1').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700';
-        document.getElementById('cpstep-2').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-brand text-white';
-      } else {
-        document.querySelectorAll('#cp-dots .pin-dot').forEach(d=>{d.classList.remove('filled');d.classList.add('error');});
-        msg.textContent='รหัสปัจจุบันไม่ถูกต้อง';
-        setTimeout(()=>{ CPB=''; cpUpdateDots(); msg.textContent=''; },700);
-      }
-    }catch(e){ msg.textContent='เกิดข้อผิดพลาด ลองใหม่'; setTimeout(()=>{ CPB=''; cpUpdateDots(); msg.textContent=''; },1200); }
-    document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='');
-  } else if(CP_STEP===2){
-    CP_NEW=CPB; CP_STEP=3; CPB=''; cpUpdateDots();
-    document.getElementById('cp-label').textContent='ยืนยันรหัสใหม่อีกครั้ง';
-    document.getElementById('cpstep-2').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700';
-    document.getElementById('cpstep-3').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-brand text-white';
-  } else if(CP_STEP===3){
-    if(CPB!==CP_NEW){
-      document.querySelectorAll('#cp-dots .pin-dot').forEach(d=>{d.classList.remove('filled');d.classList.add('error');});
-      msg.textContent='รหัสไม่ตรงกัน ลองใหม่';
-      setTimeout(()=>{ CP_STEP=2; CP_NEW=''; CPB=''; cpUpdateDots(); msg.textContent='';
-        document.getElementById('cp-label').textContent='กรอกรหัสใหม่';
-        document.getElementById('cpstep-2').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-brand text-white';
-        document.getElementById('cpstep-3').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-400';
-      }, 700);
-      return;
-    }
-    document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
-    try{
-      const res=await api('changePin',{name:CU.name,newPin:await hashPin(CP_NEW),role:CU.role});
-      if(res.ok){
-        document.getElementById('cp-label').textContent='เปลี่ยนรหัสสำเร็จ ✓';
-        document.getElementById('cp-label').style.color='#0F6E56';
-        document.getElementById('cpstep-3').className='text-xs px-2.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700';
-        CPB=''; cpUpdateDots();
-        setTimeout(()=>renderPinChange(), 2000);
-      } else { msg.textContent='เกิดข้อผิดพลาด'; CPB=''; cpUpdateDots(); }
-    }catch(e){ msg.textContent='เกิดข้อผิดพลาด ลองใหม่'; CPB=''; cpUpdateDots(); }
-    document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='');
-  }
-}
-
-function cpDelete(){ CPB=CPB.slice(0,-1); cpUpdateDots(); document.getElementById('cp-msg').textContent=''; }
-
-function cpEnter(d){
-  if(CPB.length>=4) return;
-  CPB+=d; cpUpdateDots();
-  if(CPB.length===4) setTimeout(cpNext, 150);
-}
-
-async function cpNext(){
-  const msg=document.getElementById('cp-msg');
-  document.querySelectorAll('#cp-dots .pin-dot').forEach(dot=>{dot.classList.remove('error');});
-  if(CP_STEP===1){
     // verify old PIN
     document.querySelectorAll('#hist-body .numpad-key').forEach(b=>b.style.pointerEvents='none');
     try{
