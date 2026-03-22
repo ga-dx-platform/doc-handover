@@ -39,6 +39,11 @@ function doPost(e) {
 }
 
 // ===== HELPERS =====
+function sha256(str) {
+  var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str);
+  return b.map(function(x) { return ('0' + (x & 0xff).toString(16)).slice(-2); }).join('');
+}
+
 function getSheet(name) {
   return getSS().getSheetByName(name);
 }
@@ -69,7 +74,9 @@ function verifyPin(data) {
   var rows  = sheetToObjects(sheet);
   var user  = rows.filter(function(r) { return r.name === data.name; })[0];
   if (!user) return { ok: false };
-  return { ok: String(user.pin) === String(data.pin) };
+  var stored = String(user.pin);
+  var match = stored === String(data.pin) || sha256(stored) === String(data.pin);
+  return { ok: match };
 }
 
 function changePin(data) {
@@ -158,10 +165,12 @@ function receipt(data) {
   var tsC       = pH.indexOf('signed_at');
   for (var i = 1; i < planVals.length; i++) {
     if (planVals[i][pIdC] === data.plan_id) {
+      var now = new Date();
+      var signed_at = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
       planVals[i][stC]  = data.status;
       planVals[i][sigC] = data.signer;
       planVals[i][imgC] = data.sign_img || '';
-      planVals[i][tsC]  = data.signed_at;
+      planVals[i][tsC]  = signed_at;
       planSheet.getRange(i + 1, 1, 1, planVals[i].length).setValues([planVals[i]]);
       break;
     }
