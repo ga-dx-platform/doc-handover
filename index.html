@@ -273,8 +273,10 @@
             class="w-16 h-16 rounded-full bg-blue-100 text-brand flex items-center justify-center font-bold text-lg mb-3">
           </div>
           <p id="pin-name" class="font-semibold text-gray-900 mb-1"></p>
-          <p class="text-sm text-gray-400 mb-8">กรอก PIN 4 หลัก</p>
-          <div class="flex gap-4 mb-10" id="pin-dots">
+          <p class="text-sm text-gray-400 mb-8">กรอก PIN 6 หลัก</p>
+          <div class="flex gap-3 mb-10" id="pin-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
             <div class="pin-dot"></div>
             <div class="pin-dot"></div>
             <div class="pin-dot"></div>
@@ -384,8 +386,8 @@
           </select>
         </div>
         <div>
-          <label class="text-xs font-semibold text-gray-500 mb-1.5 block">รหัส PIN (4 หลัก)</label>
-          <input type="password" id="newUserPin" maxlength="4" placeholder="••••"
+          <label class="text-xs font-semibold text-gray-500 mb-1.5 block">รหัส PIN (6 หลัก)</label>
+          <input type="password" id="newUserPin" maxlength="6" placeholder="••••••"
             class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50/50 text-center tracking-widest font-bold">
         </div>
       </div>
@@ -502,16 +504,23 @@
           const { data, error } = await supabaseClient.from(table).select('*').eq('name', params.name).single();
           if (error || !data) return { ok: false };
           const stored = String(data.pin);
-          const input = String(params.pin).padStart(4, '0');
+          const input = String(params.pin).padStart(6, '0');
           const hInput = await sha256(input);
           // Case 1: stored is already a SHA256 hash
           if (stored === hInput) return { ok: true };
           // Case 2: stored is plain-text PIN — auto-upgrade to hash on first login
-          if (stored.padStart(4, '0') === input) {
+          if (stored.padStart(6, '0') === input) {
             await supabaseClient.from(table).update({ pin: hInput }).eq('name', params.name);
             return { ok: true };
           }
           return { ok: false };
+        }
+
+        if (action === 'changePin') {
+          const table = params.role === 'ga' ? 'ga_staff' : 'managers';
+          const newHashed = await sha256(String(params.newPin).padStart(6, '0'));
+          const { error } = await supabaseClient.from(table).update({ pin: newHashed }).eq('name', params.name);
+          return { ok: !error };
         }
 
         if (action === 'getPlans') {
@@ -604,7 +613,7 @@
 
         if (action === 'addUser') {
           const table = params.role === 'ga' ? 'ga_staff' : 'managers';
-          const hashedPin = await sha256(String(params.pin).padStart(4, '0'));
+          const hashedPin = await sha256(String(params.pin).padStart(6, '0'));
           const { data, error } = await supabaseClient.from(table).insert([{
             name: params.name,
             pin: hashedPin,
@@ -811,10 +820,10 @@
 
     // ===== PIN =====
     function enterPin(d) {
-      if (PB.length >= 4) return;
+      if (PB.length >= 6) return;
       if (navigator.vibrate) navigator.vibrate(8);
       PB += d; updatePinDots();
-      if (PB.length === 4) setTimeout(checkPin, 150);
+      if (PB.length === 6) setTimeout(checkPin, 150);
     }
     function deletePin() { PB = PB.slice(0, -1); updatePinDots(); document.getElementById('pin-error').textContent = ''; }
     function updatePinDots() { document.querySelectorAll('#pin-dots .pin-dot').forEach((dot, i) => { dot.classList.toggle('filled', i < PB.length); dot.classList.remove('error'); }); }
@@ -1423,8 +1432,8 @@
         <span id="cpstep-3" class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-400">3 ยืนยัน</span>
       </div>
       <p id="cp-label" class="text-sm text-gray-500 mb-6">กรอกรหัสปัจจุบัน</p>
-      <div class="flex gap-4 mb-3" id="cp-dots">
-        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      <div class="flex gap-3 mb-3" id="cp-dots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
       </div>
       <div id="cp-msg" class="text-sm font-medium min-h-5 mb-4 text-red-500"></div>
       <div class="grid grid-cols-3 gap-3">
@@ -1448,9 +1457,9 @@
     function cpDelete() { CPB = CPB.slice(0, -1); cpUpdateDots(); document.getElementById('cp-msg').textContent = ''; }
 
     function cpEnter(d) {
-      if (CPB.length >= 4) return;
+      if (CPB.length >= 6) return;
       CPB += d; cpUpdateDots();
-      if (CPB.length === 4) setTimeout(cpNext, 150);
+      if (CPB.length === 6) setTimeout(cpNext, 150);
     }
 
     async function cpNext() {
@@ -1705,7 +1714,7 @@
       const role = document.getElementById('newUserRole').value;
       const pin = document.getElementById('newUserPin').value.trim();
       if (!name || !pin) { toast('กรุณากรอกข้อมูลให้ครบ'); return; }
-      if (pin.length !== 4) { toast('PIN ต้องเป็นตัวเลข 4 หลัก'); return; }
+      if (pin.length !== 6) { toast('PIN ต้องเป็นตัวเลข 6 หลัก'); return; }
       const btn = document.getElementById('addUserBtn');
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       try {
