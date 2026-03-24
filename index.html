@@ -1248,7 +1248,6 @@
         if (res.ok) {
           PLANS.unshift({ id: res.plan_id, name, date: date || new Date().toISOString().slice(0, 10), dept, createdBy: CU.name, status: 'ready', signer: '', ts: '', leftLocation: '', leftWith: '', docs, checked: docs.map(() => false), loaded: true });
           cacheDel('plans:' + CU.name + ':' + CU.role);
-          sendNotify('plan_created', { plan_id: res.plan_id, plan_name: name, dept, created_by: CU.name, date: date || new Date().toISOString().slice(0, 10), doc_count: docs.length });
           toast('ส่งเอกสารเรียบร้อยแล้ว ✓');
           renderSend();
         }
@@ -1449,7 +1448,7 @@
         CP.status = status; CP.signer = name; CP.ts = ts;
         cacheDel('docs:' + CP.id);
         cacheDel('plans:' + CU.name + ':' + CU.role);
-        if (all) sendNotify('plan_received', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CP.createdBy, signer: name, signed_at: ts });
+        sendNotify('plan_received', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CP.createdBy, signer: name, signed_at: ts, status });
         toast(all ? 'ยืนยันรับครบทุกรายการแล้ว ✓' : 'บันทึกรับบางส่วนแล้ว ✓');
         closeReceiveDetail();
       } catch (e) { toast('เกิดข้อผิดพลาด ลองใหม่'); }
@@ -2207,7 +2206,6 @@
           const idx = PLANS.findIndex(p => p.id === CP.id);
           if (idx !== -1) { PLANS[idx].status = 'left'; PLANS[idx].leftLocation = location; PLANS[idx].leftWith = withPerson; }
           cacheDel('plans:' + CU.name + ':' + CU.role);
-          sendNotify('plan_left', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CU.name, left_location: location, left_with: withPerson });
           closeLeaveModal();
           if (!_regenMode) closeReceiveDetail();
           _regenMode = false;

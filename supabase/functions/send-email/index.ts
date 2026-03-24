@@ -11,20 +11,15 @@ const CORS = {
 }
 
 // ===== Types =====
-type NotifyType = 'plan_created' | 'plan_received' | 'plan_left'
-
 interface NotifyPayload {
-  type: NotifyType
+  type: 'plan_received'
   plan_id: string
   plan_name: string
   dept: string
   created_by: string
-  date?: string
-  doc_count?: number
   signer?: string
   signed_at?: string
-  left_location?: string
-  left_with?: string
+  status: 'done' | 'partial'
 }
 
 // ===== Resend =====
@@ -41,13 +36,7 @@ async function sendEmail(to: string, subject: string, html: string) {
   return res.json()
 }
 
-async function sendToList(emails: string[], subject: string, html: string) {
-  const results = await Promise.allSettled(emails.map(e => sendEmail(e, subject, html)))
-  const failed = results.filter(r => r.status === 'rejected')
-  if (failed.length > 0) console.error('Some emails failed:', failed)
-}
-
-// ===== HTML Templates =====
+// ===== HTML Template =====
 const base = (title: string, body: string) => `
 <!DOCTYPE html>
 <html lang="th">
@@ -62,14 +51,12 @@ const base = (title: string, body: string) => `
   .header p { margin:4px 0 0; color:#b3d0f0; font-size:13px; }
   .body { padding:28px; }
   .badge { display:inline-block; padding:4px 12px; border-radius:99px; font-size:12px; font-weight:600; }
-  .badge-blue { background:#E8F0FA; color:#185FA5; }
   .badge-green { background:#E6F5F0; color:#0F6E56; }
   .badge-amber { background:#FEF3C7; color:#D97706; }
   .info-table { width:100%; border-collapse:collapse; margin:16px 0; }
   .info-table td { padding:8px 0; border-bottom:1px solid #F0F0EE; font-size:14px; }
   .info-table td:first-child { color:#888; width:110px; }
   .info-table td:last-child { color:#1a1a1a; font-weight:500; }
-  .btn { display:inline-block; margin-top:20px; padding:12px 24px; background:#185FA5; color:#fff; border-radius:10px; text-decoration:none; font-size:14px; font-weight:600; }
   .footer { padding:16px 28px; background:#F7F7F5; text-align:center; font-size:11px; color:#aaa; }
 </style>
 </head>
@@ -85,49 +72,20 @@ const base = (title: string, body: string) => `
 </body>
 </html>`
 
-function tplPlanCreated(d: NotifyPayload) {
-  const dateStr = d.date ? new Date(d.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'
-  return base('แจ้งเตือน: มีแผนงานใหม่', `
-    <p style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px">แผนงานใหม่รอดำเนินการ</p>
-    <p style="font-size:13px;color:#666;margin:0 0 20px"><span class="badge badge-blue">รอรับ</span></p>
-    <table class="info-table">
-      <tr><td>ชื่อแผนงาน</td><td>${esc(d.plan_name)}</td></tr>
-      <tr><td>แผนก</td><td>${esc(d.dept)}</td></tr>
-      <tr><td>ผู้จัดส่ง (GA)</td><td>${esc(d.created_by)}</td></tr>
-      <tr><td>วันที่</td><td>${dateStr}</td></tr>
-      <tr><td>จำนวนเอกสาร</td><td>${d.doc_count ?? '-'} รายการ</td></tr>
-    </table>
-    <p style="font-size:13px;color:#555;margin:16px 0 0">กรุณาเตรียมรับเอกสารที่ระบุ</p>
-  `)
-}
-
 function tplPlanReceived(d: NotifyPayload) {
-  return base('แจ้งเตือน: เอกสารได้รับครบแล้ว', `
-    <p style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px">เอกสารได้รับครบทุกรายการ</p>
-    <p style="font-size:13px;color:#666;margin:0 0 20px"><span class="badge badge-green">ครบแล้ว</span></p>
+  const isDone = d.status === 'done'
+  return base(
+    isDone ? 'แจ้งเตือน: เอกสารได้รับครบแล้ว' : 'แจ้งเตือน: รับเอกสารบางส่วนแล้ว',
+    `<p style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px">${isDone ? 'เอกสารได้รับครบทุกรายการ' : 'รับเอกสารบางส่วนแล้ว'}</p>
+    <p style="font-size:13px;color:#666;margin:0 0 20px"><span class="badge ${isDone ? 'badge-green' : 'badge-amber'}">${isDone ? 'ครบแล้ว' : 'รับบางส่วน'}</span></p>
     <table class="info-table">
       <tr><td>ชื่อแผนงาน</td><td>${esc(d.plan_name)}</td></tr>
       <tr><td>แผนก</td><td>${esc(d.dept)}</td></tr>
       <tr><td>ผู้รับเอกสาร</td><td>${esc(d.signer ?? '-')}</td></tr>
       <tr><td>เวลาที่รับ</td><td>${esc(d.signed_at ?? '-')}</td></tr>
     </table>
-    <p style="font-size:13px;color:#555;margin:16px 0 0">แผนงานนี้เสร็จสมบูรณ์แล้ว ✓</p>
-  `)
-}
-
-function tplPlanLeft(d: NotifyPayload) {
-  return base('แจ้งเตือน: ฝากเอกสารไว้แล้ว', `
-    <p style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px">GA ฝากเอกสารไว้รอรับ</p>
-    <p style="font-size:13px;color:#666;margin:0 0 20px"><span class="badge badge-amber">ฝากไว้</span></p>
-    <table class="info-table">
-      <tr><td>ชื่อแผนงาน</td><td>${esc(d.plan_name)}</td></tr>
-      <tr><td>แผนก</td><td>${esc(d.dept)}</td></tr>
-      <tr><td>ผู้จัดส่ง (GA)</td><td>${esc(d.created_by)}</td></tr>
-      <tr><td>สถานที่ฝาก</td><td>${esc(d.left_location ?? '-')}</td></tr>
-      <tr><td>ฝากกับ</td><td>${esc(d.left_with ?? '-')}</td></tr>
-    </table>
-    <p style="font-size:13px;color:#555;margin:16px 0 0">ผู้รับสามารถยืนยันการรับด้วย Token ที่ได้รับจาก GA</p>
-  `)
+    <p style="font-size:13px;color:#555;margin:16px 0 0">${isDone ? 'แผนงานนี้เสร็จสมบูรณ์แล้ว ✓' : 'ยังมีเอกสารบางรายการที่รอรับอยู่'}</p>`
+  )
 }
 
 function esc(s: string) {
@@ -150,36 +108,22 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'Invalid JSON' }, 400)
   }
 
-  const { type } = payload
-  if (!type) return json({ ok: false, error: 'Missing type' }, 400)
+  if (payload.type !== 'plan_received') {
+    return json({ ok: false, error: `Unknown type: ${payload.type}` }, 400)
+  }
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
   try {
-    if (type === 'plan_created') {
-      // แจ้ง Manager ทุกคน
-      const { data: mgrs } = await db.from('managers').select('email').not('email', 'is', null)
-      const emails = (mgrs ?? []).map((r: { email: string }) => r.email).filter(Boolean)
-      if (emails.length > 0) {
-        await sendToList(emails, `[GA] แผนงานใหม่: ${payload.plan_name}`, tplPlanCreated(payload))
-      }
-    } else if (type === 'plan_received') {
-      // แจ้ง GA creator
-      const { data: ga } = await db.from('ga_staff').select('email').eq('name', payload.created_by).maybeSingle()
-      if (ga?.email) {
-        await sendEmail(ga.email, `[GA] เอกสารได้รับครบ: ${payload.plan_name}`, tplPlanReceived(payload))
-      }
-    } else if (type === 'plan_left') {
-      // แจ้ง Manager ทุกคน
-      const { data: mgrs } = await db.from('managers').select('email').not('email', 'is', null)
-      const emails = (mgrs ?? []).map((r: { email: string }) => r.email).filter(Boolean)
-      if (emails.length > 0) {
-        await sendToList(emails, `[GA] ฝากเอกสารแล้ว: ${payload.plan_name}`, tplPlanLeft(payload))
-      }
-    } else {
-      return json({ ok: false, error: `Unknown type: ${type}` }, 400)
+    // แจ้ง GA creator
+    const { data: ga } = await db.from('ga_staff').select('email').eq('name', payload.created_by).maybeSingle()
+    if (ga?.email) {
+      const isDone = payload.status === 'done'
+      const subject = isDone
+        ? `[GA] เอกสารได้รับครบ: ${payload.plan_name}`
+        : `[GA] รับบางส่วน: ${payload.plan_name}`
+      await sendEmail(ga.email, subject, tplPlanReceived(payload))
     }
-
     return json({ ok: true })
   } catch (err) {
     console.error('send-email error:', err)
