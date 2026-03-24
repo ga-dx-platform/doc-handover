@@ -806,6 +806,12 @@
     let AU = { ga: [], mgr: [] }, PLANS = [], SIGDATA = {};
     let CU = null, SU = null, PB = '';
     let _regenMode = false;
+
+    // ===== EMAIL NOTIFY (fire-and-forget) =====
+    function sendNotify(type, data) {
+      supabaseClient.functions.invoke('send-email', { body: { type, ...data } })
+        .catch(e => console.warn('sendNotify failed:', e));
+    }
     let PIN_ATTEMPTS = 0, PIN_LOCKED_UNTIL = 0;
     const PIN_MAX_ATTEMPTS = 5, PIN_LOCK_MS = 60000;
     let rdConfirmState = false;
@@ -1240,8 +1246,9 @@
       try {
         const res = await api('createPlan', { name, date: date || new Date().toISOString().slice(0, 10), dept, created_by: CU.name, docs });
         if (res.ok) {
-          PLANS.unshift({ id: res.plan_id, name, date: date || new Date().toISOString().slice(0, 10), dept, createdBy: CU.name, status: 'ready', signer: '', ts: '', docs, checked: docs.map(() => false), loaded: true });
+          PLANS.unshift({ id: res.plan_id, name, date: date || new Date().toISOString().slice(0, 10), dept, createdBy: CU.name, status: 'ready', signer: '', ts: '', leftLocation: '', leftWith: '', docs, checked: docs.map(() => false), loaded: true });
           cacheDel('plans:' + CU.name + ':' + CU.role);
+          sendNotify('plan_created', { plan_id: res.plan_id, plan_name: name, dept, created_by: CU.name, date: date || new Date().toISOString().slice(0, 10), doc_count: docs.length });
           toast('ส่งเอกสารเรียบร้อยแล้ว ✓');
           renderSend();
         }
@@ -1442,6 +1449,7 @@
         CP.status = status; CP.signer = name; CP.ts = ts;
         cacheDel('docs:' + CP.id);
         cacheDel('plans:' + CU.name + ':' + CU.role);
+        if (all) sendNotify('plan_received', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CP.createdBy, signer: name, signed_at: ts });
         toast(all ? 'ยืนยันรับครบทุกรายการแล้ว ✓' : 'บันทึกรับบางส่วนแล้ว ✓');
         closeReceiveDetail();
       } catch (e) { toast('เกิดข้อผิดพลาด ลองใหม่'); }
@@ -2199,6 +2207,7 @@
           const idx = PLANS.findIndex(p => p.id === CP.id);
           if (idx !== -1) { PLANS[idx].status = 'left'; PLANS[idx].leftLocation = location; PLANS[idx].leftWith = withPerson; }
           cacheDel('plans:' + CU.name + ':' + CU.role);
+          sendNotify('plan_left', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CU.name, left_location: location, left_with: withPerson });
           closeLeaveModal();
           if (!_regenMode) closeReceiveDetail();
           _regenMode = false;
