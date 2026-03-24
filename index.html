@@ -860,6 +860,7 @@
     }
 
     // ===== INIT =====
+    let _initRetries = 0;
     async function init() {
       const urlToken = new URLSearchParams(window.location.search).get('token');
       if (urlToken) { openVerifyToken(urlToken); return; }
@@ -874,8 +875,13 @@
         goScreen('login');
         lucide.createIcons();
       } catch (e) {
-        document.getElementById('loadingMsg').textContent = 'เชื่อมต่อไม่ได้ กรุณาลองใหม่...';
-        setTimeout(() => init(), 3000);
+        _initRetries++;
+        if (_initRetries >= 5) {
+          document.getElementById('loadingMsg').textContent = 'ไม่สามารถเชื่อมต่อได้ กรุณารีเฟรชหน้า';
+        } else {
+          document.getElementById('loadingMsg').textContent = `เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง... (${_initRetries}/5)`;
+          setTimeout(() => init(), 3000);
+        }
       }
     }
 
@@ -908,7 +914,10 @@
       const list = role === 'ga' ? AU.ga : AU.mgr;
       const idx = list.findIndex(u => u.name === name);
       const a = avc(role === 'ga' ? idx : idx + 4);
-      SU = { name, role, av: a }; PIN_ATTEMPTS = 0; PIN_LOCKED_UNTIL = 0;
+      SU = { name, role, av: a }; PIN_ATTEMPTS = 0;
+      const _lockKey = 'pin_lock:' + name;
+      const _storedLock = parseInt(localStorage.getItem(_lockKey) || '0');
+      PIN_LOCKED_UNTIL = _storedLock > Date.now() ? _storedLock : 0;
       // Pre-fetch plans while user types PIN
       const _pk = 'plans:' + name + ':' + role;
       const _cached = cacheGet(_pk);
@@ -1014,7 +1023,9 @@
         const planCacheKey = 'plans:' + SU.name + ':' + SU.role;
         const cachedPlans = cacheGet(planCacheKey);
         const verifyProm = api('verifyPin', { name: SU.name, pin: PB, role: SU.role });
-        const plansProm = _plansPrefetch || (cachedPlans ? Promise.resolve(cachedPlans) : api('getPlans', { name: SU.name, role: SU.role }));
+        const plansProm = _plansPrefetch
+          ? _plansPrefetch.then(d => d || (cachedPlans ? cachedPlans : api('getPlans', { name: SU.name, role: SU.role })))
+          : (cachedPlans ? Promise.resolve(cachedPlans) : api('getPlans', { name: SU.name, role: SU.role }));
         const [res, plans] = await Promise.all([verifyProm, plansProm]);
         if (res.ok) {
           PIN_ATTEMPTS = 0;
@@ -1033,6 +1044,7 @@
           const remaining = PIN_MAX_ATTEMPTS - PIN_ATTEMPTS;
           if (PIN_ATTEMPTS >= PIN_MAX_ATTEMPTS) {
             PIN_LOCKED_UNTIL = Date.now() + PIN_LOCK_MS;
+            try { localStorage.setItem('pin_lock:' + SU.name, PIN_LOCKED_UNTIL); } catch (e) {}
             document.getElementById('pin-error').textContent = `ล็อกชั่วคราว ${PIN_LOCK_MS / 1000} วินาที`;
           } else {
             document.getElementById('pin-error').textContent = `PIN ไม่ถูกต้อง (เหลือ ${remaining} ครั้ง)`;
@@ -1249,6 +1261,9 @@
       const dept = deptSel === '__other__' ? document.getElementById('pDeptOther').value.trim() : deptSel;
       const docs = getDocItems();
       if (!name) { toast('กรุณาใส่ชื่อแผน'); return; }
+      if (name.length > 100) { toast('ชื่อแผนยาวเกินไป (สูงสุด 100 ตัวอักษร)'); return; }
+      if (!dept) { toast('กรุณาระบุแผนก'); return; }
+      if (dept.length > 50) { toast('ชื่อแผนกยาวเกินไป (สูงสุด 50 ตัวอักษร)'); return; }
       if (!dept) { toast('กรุณาเลือกแผนกปลายทาง'); return; }
       if (!docs.length) { toast('กรุณาเพิ่มอย่างน้อย 1 เอกสาร'); return; }
       // Warn if any duplicate doc numbers detected
@@ -1264,7 +1279,7 @@
           toast('ส่งเอกสารเรียบร้อยแล้ว ✓');
           renderSend();
         }
-      } catch (e) { toast('เกิดข้อผิดพลาด ลองใหม่'); }
+      } catch (e) { toast('ส่งเอกสารไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่'); }
       if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> ส่งเอกสาร'; }
       lucide.createIcons();
     }
@@ -1309,7 +1324,7 @@
             RF = ''; renderReceiveTab();
             loadAllDocsBackground();
             toast('รีเฟรชแล้ว ✓');
-          } catch (e) { toast('รีเฟรชไม่สำเร็จ ลองใหม่'); }
+          } catch (e) { toast('รีเฟรชไม่สำเร็จ ลองใหม่'); RF = ''; renderReceiveTab(); }
         }
       }, { passive: true });
     }
@@ -1352,6 +1367,7 @@
 
     async function openReceiveDetail(id) {
       CP = PLANS.find(p => p.id === id);
+      if (!CP) { toast('ไม่พบแผนงาน'); return; }
       if (!CP.loaded) {
         document.getElementById('rdModal-name').textContent = CP.name;
         document.getElementById('rdModal-meta').textContent = `${CP.dept} • กำลังโหลด...`;
@@ -1360,6 +1376,10 @@
         document.getElementById('rdModal-body').innerHTML = skeletonReceiveDetail();
         goScreen('receive-detail');
         await loadDocs(id);
+      }
+      // Load previous signature for partial plans
+      if (CP.signer && !SIGDATA[id]) {
+        try { const sig = await api('getSign', { plan_id: id }); if (sig) SIGDATA[id] = sig; } catch (e) { /* ไม่มี sig ไม่ crash */ }
       }
       const p = CP, tot = p.docs.reduce((a, d) => a + (d.amount || 0), 0);
       document.getElementById('rdModal-name').textContent = p.name;
@@ -1383,7 +1403,8 @@
       <h4 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2"><i data-lucide="pen-tool" class="w-4 h-4 text-brand"></i> ลงนามผู้รับ</h4>
       <label class="text-xs font-medium text-gray-500 mb-1.5 block">ชื่อผู้รับเอกสาร</label>
       <input type="text" id="signerName" placeholder="พิมพ์ชื่อผู้รับ" value="${he(p.signer)}" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand bg-gray-50/50 mb-3">
-      <label class="text-xs font-medium text-gray-500 mb-1.5 block">ลายเซ็น</label>
+      ${SIGDATA[p.id] ? `<label class="text-xs font-medium text-gray-500 mb-1 block">ลายเซ็นครั้งก่อน (${he(p.signer)})</label><div class="border border-gray-100 rounded-lg overflow-hidden bg-gray-50 mb-3"><img src="${SIGDATA[p.id]}" style="width:100%;height:60px;object-fit:contain;"></div>` : ''}
+      <label class="text-xs font-medium text-gray-500 mb-1.5 block">ลายเซ็นใหม่</label>
       <div class="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50/50">
         <canvas id="signatureCanvas" width="400" height="160" class="w-full" style="height:140px;"></canvas>
         <button onclick="clearSign()" class="absolute top-2 right-2 px-2.5 py-1 bg-white rounded-md text-xs text-gray-400 hover:text-gray-600 card-shadow transition">ล้าง</button>
@@ -1401,9 +1422,12 @@
     function closeReceiveDetail() {
       rdConfirmState = false;
       goScreen('main');
-      // refresh receive tab
-      const isMgr = CU.role === 'mgr';
-      if (!isMgr) { RF = ''; renderReceiveTab(); }
+      // Update PLANS in-memory (CP is a reference, but ensure status is synced)
+      const idx = PLANS.findIndex(p => p.id === CP.id);
+      if (idx !== -1) { PLANS[idx].status = CP.status; PLANS[idx].signer = CP.signer; }
+      // Refresh both tabs so status reflects immediately
+      if (CU.role !== 'mgr') { RF = ''; renderReceiveTab(); }
+      renderHistory();
     }
 
     function togDoc(i, v) { if (CP) { CP.checked[i] = v; } }
@@ -1417,7 +1441,7 @@
       sctx = c.getContext('2d');
       sctx.scale(dpr, dpr);
       sctx.strokeStyle = '#1E293B'; sctx.lineWidth = 2; sctx.lineCap = 'round'; sctx.lineJoin = 'round';
-      const pos = e => { const rc = c.getBoundingClientRect(), src = e.touches ? e.touches[0] : e; return [src.clientX - rc.left, src.clientY - rc.top]; };
+      const pos = e => { const rc = c.getBoundingClientRect(), src = e.touches?.[0] ?? e; return [src.clientX - rc.left, src.clientY - rc.top]; };
       c.onpointerdown = e => { drawing = true; const [x, y] = pos(e); sctx.beginPath(); sctx.moveTo(x, y); };
       c.onpointermove = e => { if (!drawing) return; const [x, y] = pos(e); sctx.lineTo(x, y); sctx.stroke(); };
       c.onpointerup = c.onpointerleave = () => drawing = false;
@@ -1450,7 +1474,13 @@
       }
       rdConfirmState = false;
       const canvas = document.getElementById('signatureCanvas');
-      const sig = (canvas && !isCanvasBlank(canvas)) ? canvas.toDataURL() : '';
+      let sig = '';
+      try { sig = (canvas && !isCanvasBlank(canvas)) ? canvas.toDataURL('image/jpeg', 0.6) : ''; } catch (e) { toast('ไม่สามารถบันทึกลายเซ็นได้ กรุณาลองใหม่'); return; }
+      if (sig && sig.length > 200000) {
+        toast('ลายเซ็นมีขนาดใหญ่เกินไป กรุณาล้างแล้ววาดใหม่');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> ยืนยันรับเอกสาร'; lucide.createIcons(); }
+        return;
+      }
       if (sig) SIGDATA[CP.id] = sig;
       const all = CP.checked.every(Boolean), status = all ? 'done' : 'partial';
       const now = new Date();
@@ -1464,7 +1494,7 @@
         sendNotify('plan_received', { plan_id: CP.id, plan_name: CP.name, dept: CP.dept, created_by: CP.createdBy, signer: name, signed_at: ts, status });
         toast(all ? 'ยืนยันรับครบทุกรายการแล้ว ✓' : 'บันทึกรับบางส่วนแล้ว ✓');
         closeReceiveDetail();
-      } catch (e) { toast('เกิดข้อผิดพลาด ลองใหม่'); }
+      } catch (e) { toast('บันทึกการรับไม่สำเร็จ กรุณาลองใหม่'); }
     }
 
     // ===== HISTORY TAB =====
@@ -1637,10 +1667,14 @@
       }
     }
 
+    let _sqTimer = null;
     function setSQ(v) {
       SQ = v;
-      renderHistList();
-      if (v && PLANS.some(p => !p.loaded)) loadAllDocsBackground();
+      clearTimeout(_sqTimer);
+      _sqTimer = setTimeout(() => {
+        renderHistList();
+        if (v && PLANS.some(p => !p.loaded)) loadAllDocsBackground();
+      }, 250);
     }
     function setGF2(n) { GF = n; renderHistList(); }
     function setHF(d) { HF = d; renderHistList(); }
@@ -1804,10 +1838,10 @@
     // ===== BATCH DETAIL =====
     async function openBatch(id) {
       CP = PLANS.find(x => x.id === id);
+      if (!CP) { toast('ไม่พบแผนงาน'); return; }
       if (!CP.loaded) { toast('กำลังโหลด...'); await loadDocs(id); }
       if (CP.signer && !SIGDATA[id]) {
-        const sig = await api('getSign', { plan_id: id });
-        if (sig) SIGDATA[id] = sig;
+        try { const sig = await api('getSign', { plan_id: id }); if (sig) SIGDATA[id] = sig; } catch (e) { /* ไม่มี sig ไม่ crash */ }
       }
       const p = CP, hasSig = SIGDATA[id];
       const tot = p.docs.reduce((a, d) => a + (d.amount || 0), 0);
@@ -1865,6 +1899,7 @@
     }
     function closeBatch() {
       goScreen('main');
+      resetAutoLogout();
       const btn = document.getElementById('deletePlanBtnHeader');
       if (btn) btn.style.display = 'none';
     }
@@ -1925,7 +1960,7 @@
           closeBatch();
           renderHistory();
         }
-      } catch (e) { toast('เกิดข้อผิดพลาด ลองใหม่'); }
+      } catch (e) { toast('ลบแผนงานไม่สำเร็จ กรุณาลองใหม่'); }
       btn.disabled = false; btn.textContent = 'ลบเลย';
     }
 
@@ -1988,8 +2023,10 @@
       const pin = document.getElementById('newUserPin').value.trim();
       const email = document.getElementById('newUserEmail').value.trim();
       if (!name || !pin) { toast('กรุณากรอกข้อมูลให้ครบ'); return; }
-      if (pin.length !== 6) { toast('PIN ต้องเป็นตัวเลข 6 หลัก'); return; }
+      if (!/^\d{6}$/.test(pin)) { toast('PIN ต้องเป็นตัวเลข 6 หลักเท่านั้น'); return; }
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('รูปแบบอีเมลไม่ถูกต้อง'); return; }
+      const allUsers = [...(AU.ga || []), ...(AU.mgr || [])];
+      if (allUsers.some(u => u.name === name)) { toast('มีชื่อ "' + name + '" อยู่แล้ว'); return; }
       const btn = document.getElementById('addUserBtn');
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       try {
@@ -2002,7 +2039,7 @@
           renderUserManagement();
           buildLoginScreen();
         }
-      } catch (e) { toast('เกิดข้อผิดพลาด'); }
+      } catch (e) { toast('เพิ่มสมาชิกไม่สำเร็จ กรุณาลองใหม่'); }
       btn.disabled = false; btn.textContent = 'บันทึก';
     }
 
@@ -2036,7 +2073,7 @@
           renderUserManagement();
           buildLoginScreen();
         }
-      } catch (e) { toast('\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14'); }
+      } catch (e) { toast('ลบสมาชิกไม่สำเร็จ กรุณาลองใหม่'); }
       btn.disabled = false; btn.textContent = '\u0e25\u0e1a\u0e40\u0e25\u0e22';
     }
 
