@@ -1118,7 +1118,7 @@
   </div>
   <div class="space-y-2.5">
     <div class="grid grid-cols-2 gap-2.5">
-      <input type="text" placeholder="เลขที่เอกสาร" class="fn w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand bg-gray-50/50">
+      <input type="text" placeholder="เลขที่เอกสาร" class="fn w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand bg-gray-50/50" oninput="checkDupDocNo(this)">
       <input type="text" placeholder="ผู้ขาย/Vendor" class="fv w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand bg-gray-50/50">
     </div>
     <input type="text" placeholder="รายละเอียดเอกสาร" class="fd w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand bg-gray-50/50">
@@ -1142,6 +1142,52 @@
       })).filter(d => d.no);
     }
 
+    function checkDupDocNo(triggerInput) {
+      // Re-check all fn inputs so cross-item dups both go red/clear together
+      document.querySelectorAll('.doc-item .fn').forEach(input => {
+        const val = input.value.trim();
+        const item = input.closest('.doc-item');
+        let warn = item.querySelector('.dup-warn');
+
+        if (!val) {
+          input.classList.remove('border-red-400', 'bg-red-50');
+          input.classList.add('border-gray-200');
+          if (warn) warn.remove();
+          return;
+        }
+
+        // Check against already-loaded docs across all plans
+        let dupPlanName = null;
+        for (const p of PLANS) {
+          for (const d of (p.docs || [])) {
+            if (d.no && d.no === val) { dupPlanName = p.name; break; }
+          }
+          if (dupPlanName) break;
+        }
+
+        // Check within the same form (other items)
+        const dupInForm = [...document.querySelectorAll('.doc-item .fn')]
+          .some(el => el !== input && el.value.trim() === val);
+
+        if (dupPlanName || dupInForm) {
+          input.classList.add('border-red-400', 'bg-red-50');
+          input.classList.remove('border-gray-200');
+          if (!warn) {
+            warn = document.createElement('p');
+            warn.className = 'dup-warn text-xs text-red-500 mt-1 font-medium';
+            input.closest('.grid').insertAdjacentElement('afterend', warn);
+          }
+          warn.textContent = dupPlanName
+            ? `⚠ เลขซ้ำกับแผน "${dupPlanName}"`
+            : '⚠ เลขซ้ำกับรายการอื่นในฟอร์มนี้';
+        } else {
+          input.classList.remove('border-red-400', 'bg-red-50');
+          input.classList.add('border-gray-200');
+          if (warn) warn.remove();
+        }
+      });
+    }
+
     async function submitPlan() {
       const name = document.getElementById('pName').value.trim();
       const date = document.getElementById('pDate').value;
@@ -1151,6 +1197,10 @@
       if (!name) { toast('กรุณาใส่ชื่อแผน'); return; }
       if (!dept) { toast('กรุณาเลือกแผนกปลายทาง'); return; }
       if (!docs.length) { toast('กรุณาเพิ่มอย่างน้อย 1 เอกสาร'); return; }
+      // Warn if any duplicate doc numbers detected
+      if (document.querySelector('.doc-item .dup-warn')) {
+        toast('⚠ มีเลขเอกสารซ้ำ — กรุณาตรวจสอบก่อนส่ง'); return;
+      }
       const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       try {
         const res = await api('createPlan', { name, date: date || new Date().toISOString().slice(0, 10), dept, created_by: CU.name, docs });
