@@ -624,21 +624,24 @@
 
         if (action === 'getPlans') {
           // Exclude sign_img for better performance in list views
-          let query = supabaseClient.from('plans').select('p_id, name, date, dept, created_by, status, signer, signed_at');
+          let query = supabaseClient.from('plans').select('p_id, name, date, dept, created_by, status, signer, signed_at, token_expires_at, left_location, left_with');
           if (params.role === 'ga') {
             query = query.eq('created_by', params.name);
           }
           const { data } = await query.order('id', { ascending: false });
+          const now = new Date();
           return (data || []).map(r => ({
             plan_id: r.p_id,
             name: r.name,
             date: r.date,
             dept: r.dept,
             created_by: r.created_by,
-            status: r.status,
+            status: r.status === 'left' && r.token_expires_at && new Date(r.token_expires_at) < now ? 'expired' : r.status,
             signer: r.signer || '',
             sign_img: '', // Loaded on demand now
-            signed_at: r.signed_at || ''
+            signed_at: r.signed_at || '',
+            left_location: r.left_location || '',
+            left_with: r.left_with || ''
           }));
         }
 
@@ -802,6 +805,7 @@
     // ===== STATE =====
     let AU = { ga: [], mgr: [] }, PLANS = [], SIGDATA = {};
     let CU = null, SU = null, PB = '';
+    let _regenMode = false;
     let PIN_ATTEMPTS = 0, PIN_LOCKED_UNTIL = 0;
     const PIN_MAX_ATTEMPTS = 5, PIN_LOCK_MS = 60000;
     let rdConfirmState = false;
@@ -996,7 +1000,7 @@
         if (res.ok) {
           PIN_ATTEMPTS = 0;
           CU = { ...SU };
-          PLANS = (plans || []).map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }));
+          PLANS = (plans || []).map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }));
           if (cachedPlans) { api('getPlans', { name: CU.name, role: CU.role }).then(d => { cacheSet(planCacheKey, d); }).catch(() => { }); }
           else { cacheSet(planCacheKey, plans); }
           toast('ยินดีต้อนรับ ' + CU.name.split(' ')[0] + ' 👋');
@@ -1031,7 +1035,7 @@
     async function loadPlans() {
       document.getElementById('loadingMsg').textContent = '';
       const res = await api('getPlans', { name: CU.name, role: CU.role });
-      PLANS = res.map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }));
+      PLANS = res.map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }));
     }
 
     async function loadDocs(pid) {
@@ -1282,7 +1286,7 @@
           try {
             const plans = await api('getPlans', { name: CU.name, role: CU.role });
             cacheSet(key, plans);
-            PLANS = plans.map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', docs: [], checked: [], loaded: false }; });
+            PLANS = plans.map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }; });
             RF = ''; renderReceiveTab();
             loadAllDocsBackground();
             toast('รีเฟรชแล้ว ✓');
@@ -1814,7 +1818,17 @@
       <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50" id="sigView"></div>
     </div>`:
           `<div class="bg-gray-50 rounded-xl p-4 text-center text-sm text-gray-400">ยังไม่มีการรับเอกสาร</div>`}
-    ${['ready','partial','left'].includes(p.status) && (CU.role === 'mgr' || p.createdBy === CU.name) ? `
+    ${['left','expired'].includes(p.status) ? `
+    <div class="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-100">
+      <h4 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-amber-600"></i> ข้อมูลการฝากเอกสาร</h4>
+      <div class="flex gap-2 text-xs mb-1.5"><span class="text-gray-400 w-20 shrink-0">สถานที่ฝาก</span><span class="font-medium text-gray-700">${he(p.leftLocation || '-')}</span></div>
+      <div class="flex gap-2 text-xs"><span class="text-gray-400 w-20 shrink-0">ฝากกับ</span><span class="font-medium text-gray-700">${he(p.leftWith || '-')}</span></div>
+    </div>` : ''}
+    ${p.status === 'expired' && (CU.role === 'mgr' || p.createdBy === CU.name) ? `
+    <button onclick="genNewToken()" class="w-full mb-2 py-2.5 border-2 border-dashed border-amber-300 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 transition flex items-center justify-center gap-2">
+      <i data-lucide="refresh-cw" class="w-4 h-4"></i> Gen Token ใหม่
+    </button>` : ''}
+    ${['ready','partial','left','expired'].includes(p.status) && (CU.role === 'mgr' || p.createdBy === CU.name) ? `
     <button onclick="promptCancelPlan()" class="w-full mt-2 py-2.5 border-2 border-dashed border-red-200 text-red-500 rounded-xl text-sm font-medium hover:bg-red-50 transition flex items-center justify-center gap-2">
       <i data-lucide="x-circle" class="w-4 h-4"></i> ยกเลิกแผนงานนี้
     </button>` : ''}`;
@@ -2141,7 +2155,19 @@
     // ===== LEAVE FLOW =====
     let _leaveToken = '';
 
+    function genNewToken() {
+      if (!CP) return;
+      _regenMode = true;
+      document.getElementById('leaveLocation').value = CP.leftLocation || '';
+      document.getElementById('leaveWith').value = CP.leftWith || '';
+      const m = document.getElementById('leaveModal');
+      m.classList.remove('pointer-events-none', 'opacity-0');
+      m.classList.add('pointer-events-auto', 'opacity-100');
+      lucide.createIcons();
+    }
+
     function openLeaveModal() {
+      _regenMode = false;
       document.getElementById('leaveLocation').value = '';
       document.getElementById('leaveWith').value = '';
       const m = document.getElementById('leaveModal');
@@ -2168,11 +2194,14 @@
         if (res.ok) {
           _leaveToken = res.token;
           CP.status = 'left';
+          CP.leftLocation = location;
+          CP.leftWith = withPerson;
           const idx = PLANS.findIndex(p => p.id === CP.id);
-          if (idx !== -1) { PLANS[idx].status = 'left'; }
+          if (idx !== -1) { PLANS[idx].status = 'left'; PLANS[idx].leftLocation = location; PLANS[idx].leftWith = withPerson; }
           cacheDel('plans:' + CU.name + ':' + CU.role);
           closeLeaveModal();
-          closeReceiveDetail();
+          if (!_regenMode) closeReceiveDetail();
+          _regenMode = false;
           // แสดง Token
           document.getElementById('leaveTokenDisplay').textContent = res.token;
           const exp = new Date(res.expires_at);
