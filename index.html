@@ -1377,11 +1377,6 @@
       <div class="chip ${RF === '' ? 'active' : ''}" onclick="setRF(this,'')">📋 ทั้งหมด <span class="badge-count inline-flex items-center justify-center ${RF === '' ? 'bg-white/30 text-white' : 'bg-brand text-white'} rounded-full ml-1">${pending.length}</span></div>
       ${Object.keys(dc).map(d => `<div class="chip ${RF === d ? 'active' : ''}" data-dept="${he(d)}" onclick="setRF(this, this.dataset.dept)">${dicon(d)} ${he(d.replace('ฝ่าย', ''))} <span class="badge-count inline-flex items-center justify-center bg-brand text-white rounded-full ml-1">${dc[d]}</span></div>`).join('')}
     </div>
-    <div class="px-4 pb-2 flex justify-end">
-      <button onclick="openVerifyToken()" class="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 transition px-3 py-1.5 rounded-lg">
-        <i data-lucide="key-round" class="w-3.5 h-3.5"></i> กรอก Token
-      </button>
-    </div>
     <div class="px-4 pt-1 pb-6 space-y-3" id="rList"></div>`;
       renderRList();
       initPTR(el);
@@ -2277,7 +2272,7 @@
           <p class="font-semibold text-gray-900">กรอก Token 4 หลัก</p>
           <p class="text-sm text-gray-400 mt-1">รับ Token จาก GA ผู้นำส่งเอกสาร</p>
         </div>
-        <div class="flex gap-3 justify-center mb-6">
+        <div class="flex gap-3 justify-center mb-6" id="vtBoxes">
           ${[0,1,2,3].map(i => {
             const filled = i < VT_TOKEN.length;
             return `<div id="vtBox${i}" class="w-14 h-16 rounded-xl border-2 flex items-center justify-center text-2xl font-bold transition select-none ${filled ? 'border-brand text-brand bg-blue-50' : 'border-gray-200 text-gray-300 bg-white'}">${filled ? VT_TOKEN[i] : '—'}</div>`;
@@ -2348,6 +2343,10 @@
           result.innerHTML = `<div class="bg-red-50 border border-red-100 rounded-xl p-4 text-center"><p class="text-sm text-red-600 font-medium">${he(msg)}</p></div>`;
           VT = { plan: null, docs: [], checked: [] };
         } else {
+          const vtBoxesEl = document.getElementById('vtBoxes');
+          const vtNumpadEl2 = document.getElementById('vtNumpad');
+          if (vtBoxesEl) vtBoxesEl.style.display = 'none';
+          if (vtNumpadEl2) vtNumpadEl2.style.display = 'none';
           VT = { plan: res.plan, docs: res.docs, checked: res.docs.map(() => false) };
           const p = res.plan; const docs = res.docs;
           const dStr = p.date ? new Date(p.date).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'2-digit' }) : '';
