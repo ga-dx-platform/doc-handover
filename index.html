@@ -494,6 +494,35 @@
     </div>
   </div>
 
+  <!-- Reset PIN Modal -->
+  <div id="resetPinModal"
+    class="fixed inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200 px-6"
+    style="z-index:300;">
+    <div class="absolute inset-0 bg-black/40" onclick="closeResetPinModal()"></div>
+    <div class="relative w-full bg-white rounded-2xl p-6" style="max-width:320px;">
+      <div class="flex flex-col items-center text-center mb-5">
+        <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mb-3">
+          <i data-lucide="key-round" class="w-6 h-6 text-amber-500"></i>
+        </div>
+        <p class="font-semibold text-gray-900 text-base">Reset PIN</p>
+        <p id="resetPinNameLabel" class="text-sm text-brand font-semibold mt-1"></p>
+        <p class="text-xs text-gray-400 mt-1">PIN ใหม่ที่สุ่มได้ — แจ้งให้ผู้ใช้นำไปเปลี่ยนเอง</p>
+      </div>
+      <div class="flex items-center justify-center gap-3 bg-amber-50 rounded-xl py-4 mb-5">
+        <span id="resetPinValue" class="text-3xl font-bold tracking-widest text-amber-700 font-mono select-all"></span>
+        <button onclick="regeneratePin()" class="p-1.5 rounded-lg hover:bg-amber-100 transition text-amber-400 hover:text-amber-600">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="closeResetPinModal()"
+          class="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">ยกเลิก</button>
+        <button id="resetPinConfirmBtn" onclick="executeResetPin()"
+          class="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition">ยืนยัน Reset</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Logout Modal -->
   <div id="logoutModal"
     class="fixed inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200 px-6"
@@ -2039,6 +2068,9 @@
             <button data-name="${he(u.name)}" data-utype="${he(u.type)}" data-email="${he(u.email||'')}" onclick="openEditEmailModal(this.dataset.name, this.dataset.utype, this.dataset.email)" class="p-2 rounded-lg text-gray-300 hover:text-brand hover:bg-blue-50 transition">
               <i data-lucide="pencil" class="w-4 h-4"></i>
             </button>
+            <button data-name="${he(u.name)}" data-utype="${he(u.type)}" onclick="openResetPinModal(this.dataset.name, this.dataset.utype)" class="p-2 rounded-lg text-gray-300 hover:text-amber-500 hover:bg-amber-50 transition">
+              <i data-lucide="key-round" class="w-4 h-4"></i>
+            </button>
             <button data-name="${he(u.name)}" data-utype="${he(u.type)}" onclick="confirmDeleteUser(this.dataset.name, this.dataset.utype)" class="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
@@ -2158,6 +2190,56 @@
         }
       } catch (e) { console.error('[deleteUser]', e); toast('ลบสมาชิกไม่สำเร็จ กรุณาลองใหม่'); }
       btn.disabled = false; btn.textContent = '\u0e25\u0e1a\u0e40\u0e25\u0e22';
+    }
+
+    // ===== RESET PIN =====
+    let _resetPinTarget = null, _resetPinNew = '';
+
+    function generateRandomPin() {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return String(arr[0] % 900000 + 100000); // 100000–999999
+    }
+
+    function regeneratePin() {
+      _resetPinNew = generateRandomPin();
+      document.getElementById('resetPinValue').textContent = _resetPinNew;
+    }
+
+    function openResetPinModal(name, role) {
+      _resetPinTarget = { name, role };
+      _resetPinNew = generateRandomPin();
+      document.getElementById('resetPinNameLabel').textContent = name;
+      document.getElementById('resetPinValue').textContent = _resetPinNew;
+      const m = document.getElementById('resetPinModal');
+      m.classList.remove('pointer-events-none'); m.classList.add('opacity-100');
+      lucide.createIcons();
+    }
+
+    function closeResetPinModal() {
+      const m = document.getElementById('resetPinModal');
+      m.classList.add('pointer-events-none'); m.classList.remove('opacity-100');
+      _resetPinTarget = null; _resetPinNew = '';
+    }
+
+    async function executeResetPin() {
+      if (!_resetPinTarget) return;
+      const { name, role } = _resetPinTarget;
+      const btn = document.getElementById('resetPinConfirmBtn');
+      btn.disabled = true; btn.textContent = 'กำลัง Reset...';
+      try {
+        const res = await api('changePin', { name, newPin: _resetPinNew, role });
+        if (res.ok) {
+          toast('Reset PIN สำเร็จ ✓ แจ้ง PIN ใหม่ให้ผู้ใช้ด้วย');
+          closeResetPinModal();
+        } else {
+          toast('Reset PIN ไม่สำเร็จ กรุณาลองใหม่');
+        }
+      } catch (e) {
+        console.error('[resetPin]', e);
+        toast('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      }
+      btn.disabled = false; btn.textContent = 'ยืนยัน Reset';
     }
 
     // ===== VERIFY TOKEN FLOW =====
