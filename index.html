@@ -682,7 +682,7 @@
 
         if (action === 'getPlans') {
           // Exclude sign_img for better performance in list views
-          let query = supabaseClient.from('plans').select('p_id, name, date, dept, created_by, status, signer, signed_at, token_expires_at, left_location, left_with');
+          let query = supabaseClient.from('plans').select('p_id, name, date, dept, created_by, status, signer, signed_at, token_expires_at, left_location, left_with, sign_token');
           if (params.role === 'ga') {
             query = query.eq('created_by', params.name);
           }
@@ -712,7 +712,8 @@
             sign_img: '', // Loaded on demand now
             signed_at: r.signed_at || '',
             left_location: r.left_location || '',
-            left_with: r.left_with || ''
+            left_with: r.left_with || '',
+            sign_token: r.sign_token || ''
           }));
         }
 
@@ -1099,7 +1100,7 @@
         if (res.ok) {
           PIN_ATTEMPTS = 0;
           CU = { ...SU };
-          PLANS = (plans || []).map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }));
+          PLANS = (plans || []).map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', token: p.sign_token || '', docs: [], checked: [], loaded: false }));
           if (cachedPlans) { api('getPlans', { name: CU.name, role: CU.role }).then(d => { cacheSet(planCacheKey, d); }).catch(() => { }); }
           else { cacheSet(planCacheKey, plans); }
           toast('ยินดีต้อนรับ ' + CU.name.split(' ')[0] + ' 👋');
@@ -1135,7 +1136,7 @@
     async function loadPlans() {
       document.getElementById('loadingMsg').textContent = '';
       const res = await api('getPlans', { name: CU.name, role: CU.role });
-      PLANS = res.map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }));
+      PLANS = res.map(p => ({ id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', token: p.sign_token || '', docs: [], checked: [], loaded: false }));
     }
 
     async function loadDocs(pid) {
@@ -1364,7 +1365,12 @@
       <div class="chip ${RF === '' ? 'active' : ''}" onclick="setRF(this,'')">📋 ทั้งหมด <span class="badge-count inline-flex items-center justify-center ${RF === '' ? 'bg-white/30 text-white' : 'bg-brand text-white'} rounded-full ml-1">${pending.length}</span></div>
       ${Object.keys(dc).map(d => `<div class="chip ${RF === d ? 'active' : ''}" data-dept="${he(d)}" onclick="setRF(this, this.dataset.dept)">${dicon(d)} ${he(d.replace('ฝ่าย', ''))} <span class="badge-count inline-flex items-center justify-center bg-brand text-white rounded-full ml-1">${dc[d]}</span></div>`).join('')}
     </div>
-    <div class="px-4 pt-2 pb-6 space-y-3" id="rList"></div>`;
+    <div class="px-4 pb-2 flex justify-end">
+      <button onclick="openVerifyToken()" class="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 transition px-3 py-1.5 rounded-lg">
+        <i data-lucide="key-round" class="w-3.5 h-3.5"></i> กรอก Token
+      </button>
+    </div>
+    <div class="px-4 pt-1 pb-6 space-y-3" id="rList"></div>`;
       renderRList();
       initPTR(el);
     }
@@ -1389,7 +1395,7 @@
           try {
             const plans = await api('getPlans', { name: CU.name, role: CU.role });
             cacheSet(key, plans);
-            PLANS = plans.map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', docs: [], checked: [], loaded: false }; });
+            PLANS = plans.map(p => { if (p.sign_img) SIGDATA[p.plan_id] = p.sign_img; return { id: p.plan_id, name: p.name, date: p.date, dept: p.dept, createdBy: p.created_by, status: p.status, signer: p.signer || '', ts: p.signed_at || '', leftLocation: p.left_location || '', leftWith: p.left_with || '', token: p.sign_token || '', docs: [], checked: [], loaded: false }; });
             RF = ''; renderReceiveTab();
             loadAllDocsBackground();
             toast('รีเฟรชแล้ว ✓');
@@ -1946,7 +1952,8 @@
     <div class="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-100">
       <h4 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-amber-600"></i> ข้อมูลการฝากเอกสาร</h4>
       <div class="flex gap-2 text-xs mb-1.5"><span class="text-gray-400 w-20 shrink-0">สถานที่ฝาก</span><span class="font-medium text-gray-700">${he(p.leftLocation || '-')}</span></div>
-      <div class="flex gap-2 text-xs"><span class="text-gray-400 w-20 shrink-0">ฝากกับ</span><span class="font-medium text-gray-700">${he(p.leftWith || '-')}</span></div>
+      <div class="flex gap-2 text-xs mb-1.5"><span class="text-gray-400 w-20 shrink-0">ฝากกับ</span><span class="font-medium text-gray-700">${he(p.leftWith || '-')}</span></div>
+      ${p.status === 'left' && p.token ? `<div class="flex gap-2 text-xs items-center mt-0.5"><span class="text-gray-400 w-20 shrink-0">Token</span><span class="font-bold tracking-widest text-amber-600 font-mono text-sm">${he(p.token)}</span></div>` : ''}
     </div>` : ''}
     ${p.status === 'expired' && (CU.role === 'mgr' || p.createdBy === CU.name) ? `
     <button onclick="genNewToken()" class="w-full mb-2 py-2.5 border-2 border-dashed border-amber-300 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 transition flex items-center justify-center gap-2">
@@ -2419,7 +2426,8 @@
           CP.leftLocation = location;
           CP.leftWith = withPerson;
           const idx = PLANS.findIndex(p => p.id === CP.id);
-          if (idx !== -1) { PLANS[idx].status = 'left'; PLANS[idx].leftLocation = location; PLANS[idx].leftWith = withPerson; }
+          if (idx !== -1) { PLANS[idx].status = 'left'; PLANS[idx].leftLocation = location; PLANS[idx].leftWith = withPerson; PLANS[idx].token = res.token; }
+          CP.token = res.token;
           cacheDel('plans:' + CU.name + ':' + CU.role);
           closeLeaveModal();
           if (!_regenMode) closeReceiveDetail();
