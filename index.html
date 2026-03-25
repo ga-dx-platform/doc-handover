@@ -923,6 +923,7 @@
     let PIN_ATTEMPTS = 0, PIN_LOCKED_UNTIL = 0;
     const PIN_MAX_ATTEMPTS = 5, PIN_LOCK_MS = 60000;
     let rdConfirmState = false;
+    let vtConfirmState = false;
     let _plansPrefetch = null;
     let CPB = '', CP_STEP = 1, CP_NEW = '';
     let RF = '', HF = '', GF = '', SQ = '', HT = 'dash';
@@ -2306,7 +2307,7 @@
     }
 
     function closeVerifyToken() {
-      VT = { plan: null, docs: [], checked: [] }; VT_TOKEN = '';
+      VT = { plan: null, docs: [], checked: [] }; VT_TOKEN = ''; vtConfirmState = false;
       goScreen('login');
       lucide.createIcons();
     }
@@ -2422,6 +2423,20 @@
       if (!name) { toast('กรุณาระบุชื่อผู้รับเอกสาร'); return; }
       if (!VT.checked.some(Boolean)) { toast('กรุณาติ๊กอย่างน้อย 1 รายการ'); return; }
       const btn = document.getElementById('vtConfirmBtn');
+      if (!vtConfirmState) {
+        vtConfirmState = true;
+        btn.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i> แตะอีกครั้งเพื่อยืนยัน';
+        btn.className = btn.className.replace('bg-success hover:bg-emerald-800', 'bg-warn hover:bg-amber-700');
+        lucide.createIcons();
+        setTimeout(() => {
+          if (vtConfirmState) {
+            vtConfirmState = false;
+            if (btn) { btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> ยืนยันรับเอกสาร'; btn.className = btn.className.replace('bg-warn hover:bg-amber-700', 'bg-success hover:bg-emerald-800'); lucide.createIcons(); }
+          }
+        }, 3000);
+        return;
+      }
+      vtConfirmState = false;
       btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...'; lucide.createIcons();
       const canvas = document.getElementById('signatureCanvas');
       let sig = '';
