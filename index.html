@@ -712,6 +712,100 @@
     .toast-warning { background: linear-gradient(135deg, #B45309, #92400E); }
     .toast-info { background: linear-gradient(135deg, #1E293B, #334155); }
 
+
+
+    /* Final visual consistency pass */
+    #app-root .text-gray-400,
+    #app-root .text-slate-400,
+    #app-root .text-gray-500,
+    #app-root .text-slate-500 {
+      color: var(--gd-muted) !important;
+    }
+
+    #app-root .text-gray-300,
+    #app-root .text-slate-300 {
+      color: #94A3B8 !important;
+    }
+
+    #app-root .bg-gray-50,
+    #app-root .bg-slate-50,
+    #app-root .bg-gray-50\/50,
+    #app-root .bg-slate-100,
+    #app-root .bg-gray-100 {
+      background: linear-gradient(160deg, #ffffff 0%, #f3f8ff 100%) !important;
+      border-color: rgba(148, 163, 184, 0.24) !important;
+    }
+
+    #app-root .rounded-xl.card-shadow,
+    #app-root .rounded-2xl.card-shadow,
+    #app-root .stat-card,
+    #app-root .gd-card,
+    #app-root .user-card {
+      border-radius: var(--gd-radius-card) !important;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      box-shadow: var(--gd-shadow-sm);
+      transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    }
+
+    #app-root .rounded-xl.card-shadow:hover,
+    #app-root .rounded-2xl.card-shadow:hover,
+    #app-root .stat-card:hover,
+    #app-root .gd-card:hover,
+    #app-root .user-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--gd-shadow-hover);
+      border-color: rgba(59, 130, 246, 0.42);
+    }
+
+    #app-root .hist-tab,
+    #mainTabBar .main-tab {
+      min-height: 44px;
+      border-radius: 12px;
+    }
+
+    #app-root .bg-brand,
+    #app-root .bg-success {
+      background: linear-gradient(135deg, var(--gd-brand) 0%, #1d4ed8 52%, var(--gd-violet) 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.26);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    #app-root .hover\:bg-blue-800:hover,
+    #app-root .hover\:bg-emerald-800:hover {
+      filter: saturate(1.08);
+      transform: translateY(-1px);
+    }
+
+    #app-root .gd-empty {
+      border: 1px dashed #93C5FD;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+    }
+
+    #app-root [class*="border-dashed"] {
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    #app-root .gd-modal-panel {
+      background: linear-gradient(165deg, #ffffff 0%, #f3f8ff 74%, #eef6ff 100%);
+      border-color: rgba(96, 165, 250, 0.32);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+      padding: 24px;
+    }
+
+    #app-root i[data-lucide] {
+      color: inherit;
+    }
+
+    #app-root .text-brand,
+    #app-root .text-success,
+    #app-root .text-amber-600,
+    #app-root .text-purple-600 {
+      filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.16));
+    }
+
     .signal-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -880,7 +974,7 @@
       </div>
 
       <!-- RECEIVE DETAIL -->
-      <div id="screen-receive-detail" class="screen" style="position:absolute;inset:0;z-index:50;background:#F7F7F5;">
+      <div id="screen-receive-detail" class="screen" style="position:absolute;inset:0;z-index:50;background:var(--gd-surface);">
         <div class="gd-header px-4 py-3 flex items-center gap-3" style="position:sticky;top:0;z-index:10;">
           <button onclick="closeReceiveDetail()" class="p-1.5 rounded-full hover:bg-gray-100 transition">
             <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600"></i>
@@ -895,7 +989,7 @@
       </div>
 
       <!-- BATCH DETAIL (history) -->
-      <div id="screen-batch" class="screen" style="position:absolute;inset:0;z-index:50;background:#F7F7F5;">
+      <div id="screen-batch" class="screen" style="position:absolute;inset:0;z-index:50;background:var(--gd-surface);">
         <div class="gd-header px-4 py-3 flex items-center gap-3" style="position:sticky;top:0;z-index:10;">
           <button onclick="closeBatch()" class="p-1.5 rounded-full hover:bg-gray-100 transition">
             <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600"></i>
@@ -913,7 +1007,7 @@
       </div>
 
       <!-- VERIFY TOKEN SCREEN -->
-      <div id="screen-verify-token" class="screen" style="position:absolute;inset:0;z-index:60;background:#F7F7F5;flex-direction:column;">
+      <div id="screen-verify-token" class="screen" style="position:absolute;inset:0;z-index:60;background:var(--gd-surface);flex-direction:column;">
         <div class="gd-header px-4 py-3 flex items-center gap-3" style="position:sticky;top:0;z-index:10;">
           <button onclick="closeVerifyToken()" class="p-1.5 rounded-full hover:bg-gray-100 transition">
             <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600"></i>
@@ -950,7 +1044,7 @@
         <div>
           <label class="text-xs font-semibold text-gray-500 mb-1.5 block">รหัส PIN (6 หลัก)</label>
           <input type="password" id="newUserPin" maxlength="6" placeholder="••••••"
-            class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50/50 text-center tracking-widest font-bold">
+            class="gd-input text-center tracking-widest font-bold">
         </div>
         <div>
           <label class="text-xs font-semibold text-gray-500 mb-1.5 block">อีเมล <span class="font-normal text-gray-400">(สำหรับแจ้งเตือน, ไม่บังคับ)</span></label>
