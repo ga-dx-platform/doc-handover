@@ -28,6 +28,9 @@
     :root {
       --gd-brand: #2563EB;
       --gd-brand-strong: #1E40AF;
+      --gd-brand-vivid: #3B82F6;
+      --gd-cyan: #06B6D4;
+      --gd-violet: #7C3AED;
       --gd-brand-soft: #EAF1FF;
       --gd-surface: #F4F7FC;
       --gd-card: #FFFFFF;
@@ -266,9 +269,10 @@
 
     .gd-shell {
       background:
-        radial-gradient(circle at 0% 0%, rgba(191, 219, 254, 0.32), transparent 34%),
-        radial-gradient(circle at 100% 0%, rgba(147, 197, 253, 0.26), transparent 35%),
-        linear-gradient(180deg, #f7faff 0%, #f2f6fc 48%, #eef3fa 100%);
+        radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.26), transparent 36%),
+        radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.16), transparent 38%),
+        radial-gradient(circle at 50% 100%, rgba(124, 58, 237, 0.1), transparent 45%),
+        linear-gradient(180deg, #f6faff 0%, #edf4ff 48%, #e8f1ff 100%);
     }
 
     .gd-header {
@@ -287,8 +291,8 @@
     }
 
     .gd-card:hover {
-      box-shadow: var(--gd-shadow-hover);
-      border-color: rgba(148, 163, 184, 0.34);
+      box-shadow: 0 20px 36px rgba(30, 64, 175, 0.14), 0 4px 14px rgba(6, 182, 212, 0.1);
+      border-color: rgba(59, 130, 246, 0.38);
       transform: translateY(-2px);
     }
 
@@ -310,18 +314,20 @@
     }
 
     .gd-btn-primary {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      background: linear-gradient(135deg, var(--gd-brand) 0%, #1d4ed8 48%, var(--gd-violet) 100%);
       color: #fff;
       border-radius: 12px;
       font-size: 14px;
       font-weight: 600;
       min-height: 44px;
-      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.32), 0 6px 14px rgba(67, 56, 202, 0.2);
     }
 
     .gd-btn-primary:hover {
       transform: translateY(-1px);
-      box-shadow: 0 16px 32px rgba(37, 99, 235, 0.34);
+      filter: saturate(1.08);
+      box-shadow: 0 18px 34px rgba(37, 99, 235, 0.38), 0 8px 16px rgba(6, 182, 212, 0.18);
     }
 
     .gd-btn-secondary {
@@ -478,8 +484,8 @@
       margin-bottom: 16px;
       padding: 18px 20px;
       border-radius: 20px;
-      border: 1px solid rgba(148, 163, 184, 0.24);
-      background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 251, 255, 0.92) 100%);
+      border: 1px solid rgba(96, 165, 250, 0.28);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(236, 246, 255, 0.95) 56%, rgba(240, 249, 255, 0.92) 100%);
       box-shadow: var(--gd-shadow-sm);
     }
 
@@ -509,8 +515,8 @@
     }
 
     .gd-secondary-panel {
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid rgba(125, 211, 252, 0.38);
+      background: linear-gradient(180deg, #f4faff 0%, #eef6ff 58%, #ecfeff 100%);
       border-radius: 20px;
       padding: 20px;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
@@ -521,11 +527,24 @@
     }
 
     .gd-primary-workspace {
-      border: 1px solid rgba(37, 99, 235, 0.22);
-      background: linear-gradient(160deg, #ffffff 0%, #f8fbff 100%);
+      border: 1px solid rgba(59, 130, 246, 0.32);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(56, 189, 248, 0.12), transparent 38%),
+        linear-gradient(160deg, #ffffff 0%, #f3f9ff 100%);
       border-radius: 24px;
       padding: 20px;
       box-shadow: var(--gd-shadow-md);
+    }
+
+    .gd-icon-accent {
+      color: var(--gd-brand);
+      stroke: currentColor;
+      filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.25));
+    }
+
+    .gd-icon-accent-soft {
+      color: #0891b2;
+      stroke: currentColor;
     }
 
     @media (min-width: 1024px) {
@@ -1781,7 +1800,7 @@
     <div class="gd-form-layout gd-section-block">
       <div class="gd-secondary-panel">
         <div class="gd-section-title-row">
-          <h3 class="font-semibold text-slate-700 text-base flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i> ข้อมูลแผน</h3>
+          <h3 class="font-semibold text-slate-700 text-base flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 gd-icon-accent-soft"></i> ข้อมูลแผน</h3>
           <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide bg-white/80 border border-slate-200 rounded-full px-2.5 py-1">รอง</span>
         </div>
         <p class="text-xs text-slate-500 mb-4">ตั้งค่าข้อมูลพื้นฐานของการส่งเอกสาร</p>
@@ -1807,7 +1826,7 @@
       </div>
       <div class="gd-primary-workspace">
         <div class="gd-section-title-row">
-          <h3 class="font-semibold text-gray-900 text-base flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 text-brand"></i> รายการเอกสาร</h3>
+          <h3 class="font-semibold text-gray-900 text-base flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 gd-icon-accent"></i> รายการเอกสาร</h3>
           <span id="docCountBadge" class="text-xs bg-brand-light text-brand px-2.5 py-1 rounded-full font-semibold">1 รายการ</span>
         </div>
         <p class="text-sm text-slate-500 mb-5">พื้นที่ทำงานหลักสำหรับเพิ่มและจัดการเอกสารในแผนนี้</p>
@@ -2081,7 +2100,7 @@
       renderStatusInto('rdModal-badge', p.status);
       document.getElementById('rdModal-body').innerHTML = `
     <div class="gd-card p-6 mb-5">
-      <h4 class="font-semibold text-gray-900 text-base mb-4 flex items-center gap-2"><i data-lucide="clipboard-check" class="w-4 h-4 text-brand"></i> รายการเอกสาร</h4>
+      <h4 class="font-semibold text-gray-900 text-base mb-4 flex items-center gap-2"><i data-lucide="clipboard-check" class="w-4 h-4 gd-icon-accent"></i> รายการเอกสาร</h4>
       <div class="space-y-2" id="rdChecklist">
         ${p.docs.map((d, i) => `<label class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl cursor-pointer hover:bg-slate-100 transition">
           <input type="checkbox" ${p.checked[i] ? 'checked' : ''} onchange="togDoc(${i},this.checked)" class="w-4 h-4 rounded border-gray-300 accent-[#185FA5]">
@@ -2093,7 +2112,7 @@
       ${tot ? `<div class="mt-3 pt-3 border-t border-gray-100 flex justify-between"><span class="text-xs text-gray-500 font-medium">มูลค่ารวม</span><span class="text-sm font-bold text-gray-900">฿${fa(tot)}</span></div>` : ''}
     </div>
     <div class="gd-card p-6 mb-5">
-      <h4 class="font-semibold text-gray-900 text-base mb-4 flex items-center gap-2"><i data-lucide="pen-tool" class="w-4 h-4 text-brand"></i> ลงนามผู้รับ</h4>
+      <h4 class="font-semibold text-gray-900 text-base mb-4 flex items-center gap-2"><i data-lucide="pen-tool" class="w-4 h-4 gd-icon-accent"></i> ลงนามผู้รับ</h4>
       <label class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 block">ชื่อผู้รับเอกสาร</label>
       <input type="text" id="signerName" placeholder="พิมพ์ชื่อผู้รับ" value="${he(p.signer)}" class="gd-input mb-4">
       ${SIGDATA[p.id] ? `<label class="text-xs font-medium text-gray-500 mb-1 block">ลายเซ็นครั้งก่อน (${he(p.signer)})</label><div class="border border-gray-100 rounded-lg overflow-hidden bg-gray-50 mb-3"><img src="${SIGDATA[p.id]}" style="width:100%;height:60px;object-fit:contain;"></div>` : ''}
