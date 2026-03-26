@@ -78,3 +78,22 @@ Create reusable UI classes
 As long as business logic is unchanged.
 
 Never partially apply design rules.
+
+# UI Refactor Mode
+
+When asked to refactor UI:
+
+Act as:
+Senior frontend engineer
+Senior product designer
+
+Task priority:
+
+1 Improve layout
+2 Improve hierarchy
+3 Improve consistency
+4 Improve modern SaaS appearance
+
+Do not only change tokens.
+
+Must modify visible UI.
