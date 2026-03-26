@@ -53,3 +53,28 @@ Priority:
 Consistency > Fancy design
 Usability > Decoration
 Clarity > Complexity
+
+# AI Instructions Priority
+
+When modifying UI always read:
+
+1. ga-dx-design-system.md
+2. component-standard.md
+3. codex-ui-refactor.txt
+
+These files define UI standards.
+
+Always apply them together.
+
+# Refactoring Authority
+
+Codex is allowed to:
+
+Refactor layout structure
+Modify HTML structure
+Replace class usage
+Create reusable UI classes
+
+As long as business logic is unchanged.
+
+Never partially apply design rules.
